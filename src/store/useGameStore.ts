@@ -15,7 +15,7 @@ export interface ScoringEvent {
   type: 'TD' | 'XP1' | 'XP2' | 'SAFETY' | 'DEF_XP2' | 'MANUAL';
   timestamp: number;
   gameTime: number;
-  scorer?: string; // player name who scored
+  scorer?: string;
 }
 
 interface GameState {
@@ -27,7 +27,7 @@ interface GameState {
   awayScore: number;
   homeTimeouts: number;
   awayTimeouts: number;
-  gameTime: number; // in seconds
+  gameTime: number;
   isRunning: boolean;
   period: number;
   maxPeriods: number;
@@ -38,7 +38,6 @@ interface GameState {
   homeRoster: Player[];
   awayRoster: Player[];
 
-  // Actions
   setTeamName: (team: Team, name: string) => void;
   setTeamImage: (team: Team, image: string) => void;
   addPoints: (team: Team, points: number, type: ScoringEvent['type'], scorer?: string) => void;
@@ -55,12 +54,13 @@ interface GameState {
   setPeriod: (period: number) => void;
   addPlayer: (team: Team, player: Player) => void;
   removePlayer: (team: Team, playerId: string) => void;
+  setRoster: (team: Team, players: Player[]) => void;
   nextPeriod: () => void;
 }
 
-const INITIAL_TIME = 20 * 60; // 20 minutes
+const INITIAL_TIME = 20 * 60;
 
-export const useGameStore = create<GameState>((set, get) => ({
+export const useGameStore = create<GameState>((set) => ({
   homeTeam: 'Local',
   awayTeam: 'Visitante',
   homeTeamImage: '',
@@ -80,101 +80,40 @@ export const useGameStore = create<GameState>((set, get) => ({
   homeRoster: [],
   awayRoster: [],
 
-  setTeamName: (team, name) => set((state) => ({
-    [team === 'home' ? 'homeTeam' : 'awayTeam']: name
+  setTeamName: (team, name) => set((state) => ({ [team === 'home' ? 'homeTeam' : 'awayTeam']: name })),
+  setTeamImage: (team, image) => set((state) => ({ [team === 'home' ? 'homeTeamImage' : 'awayTeamImage']: image })),
+  addPoints: (team, points, type, scorer) => set((state) => ({
+    [team === 'home' ? 'homeScore' : 'awayScore']: state[team === 'home' ? 'homeScore' : 'awayScore'] + points,
+    history: [{ id: Math.random().toString(36).substring(7), team, points, type, timestamp: Date.now(), gameTime: state.gameTime, scorer }, ...state.history]
   })),
-
-  setTeamImage: (team, image) => set((state) => ({
-    [team === 'home' ? 'homeTeamImage' : 'awayTeamImage']: image
-  })),
-
-  addPoints: (team, points, type, scorer) => set((state) => {
-    const event: ScoringEvent = {
-      id: Math.random().toString(36).substring(7),
-      team,
-      points,
-      type,
-      timestamp: Date.now(),
-      gameTime: state.gameTime,
-      scorer,
-    };
-    
-    return {
-      [team === 'home' ? 'homeScore' : 'awayScore']: state[team === 'home' ? 'homeScore' : 'awayScore'] + points,
-      history: [event, ...state.history]
-    };
-  }),
-
   undoLastEvent: () => set((state) => {
     if (state.history.length === 0) return state;
-    const lastEvent = state.history[0];
-    const newHistory = state.history.slice(1);
-    
+    const last = state.history[0];
     return {
-      [lastEvent.team === 'home' ? 'homeScore' : 'awayScore']: state[lastEvent.team === 'home' ? 'homeScore' : 'awayScore'] - lastEvent.points,
-      history: newHistory
+      [last.team === 'home' ? 'homeScore' : 'awayScore']: state[last.team === 'home' ? 'homeScore' : 'awayScore'] - last.points,
+      history: state.history.slice(1)
     };
   }),
-
-  resetGame: () => set({
-    homeScore: 0,
-    awayScore: 0,
-    homeTimeouts: 3,
-    awayTimeouts: 3,
-    gameTime: INITIAL_TIME,
-    isRunning: false,
-    period: 1,
-    maxPeriods: 2,
-    down: 1,
-    distance: 10,
-    ballOn: 20,
-    history: [],
-    homeRoster: [],
-    awayRoster: [],
-  }),
-
+  resetGame: () => set({ homeScore: 0, awayScore: 0, homeTimeouts: 3, awayTimeouts: 3, gameTime: INITIAL_TIME, isRunning: false, period: 1, down: 1, history: [] }),
   toggleClock: () => set((state) => ({ isRunning: !state.isRunning })),
-
   tick: () => set((state) => {
-    if (!state.isRunning || state.gameTime <= 0) return { isRunning: false };
-    return { gameTime: state.gameTime - 1 };
+    if (state.isRunning && state.gameTime > 0) {
+      return { gameTime: state.gameTime - 1 };
+    }
+    return { isRunning: false };
   }),
-
   setGameTime: (seconds) => set({ gameTime: seconds }),
-
   useTimeout: (team) => set((state) => {
     const key = team === 'home' ? 'homeTimeouts' : 'awayTimeouts';
-    if (state[key] <= 0) return state;
-    return { [key]: state[key] - 1, isRunning: false };
+    return state[key] > 0 ? { [key]: state[key] - 1, isRunning: false } : state;
   }),
-
-  resetTimeouts: (team) => set((state) => ({
-    [team === 'home' ? 'homeTimeouts' : 'awayTimeouts']: 3
-  })),
-
+  resetTimeouts: (team) => set({ [team === 'home' ? 'homeTimeouts' : 'awayTimeouts']: 3 }),
   setDown: (down) => set({ down }),
   setDistance: (distance) => set({ distance }),
   setBallOn: (yard) => set({ ballOn }),
   setPeriod: (period) => set({ period }),
-
-  addPlayer: (team, player) => set((state) => ({
-    [team === 'home' ? 'homeRoster' : 'awayRoster']: [
-      ...state[team === 'home' ? 'homeRoster' : 'awayRoster'],
-      player
-    ]
-  })),
-
-  removePlayer: (team, playerId) => set((state) => ({
-    [team === 'home' ? 'homeRoster' : 'awayRoster']: state[team === 'home' ? 'homeRoster' : 'awayRoster'].filter(p => p.id !== playerId)
-  })),
-
-  nextPeriod: () => set((state) => {
-    if (state.period >= state.maxPeriods) return state;
-    return {
-      period: state.period + 1,
-      gameTime: INITIAL_TIME,
-      isRunning: false,
-    };
-  }),
-
+  addPlayer: (team, player) => set((state) => ({ [team === 'home' ? 'homeRoster' : 'awayRoster']: [...state[team === 'home' ? 'homeRoster' : 'awayRoster'], player] })),
+  removePlayer: (team, playerId) => set((state) => ({ [team === 'home' ? 'homeRoster' : 'awayRoster']: state[team === 'home' ? 'homeRoster' : 'awayRoster'].filter(p => p.id !== playerId) })),
+  setRoster: (team, players) => set({ [team === 'home' ? 'homeRoster' : 'awayRoster']: players }),
+  nextPeriod: () => set((state) => ({ period: Math.min(state.period + 1, state.maxPeriods), gameTime: INITIAL_TIME, isRunning: false })),
 }));

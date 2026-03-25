@@ -1,51 +1,59 @@
 import React, { useEffect } from 'react';
 import { useGameStore } from '../store/useGameStore';
-import { Play, Pause, RotateCcw, SkipForward, CircleStop } from 'lucide-react';
+import { Play, Pause, SkipForward, Timer, AlertTriangle } from 'lucide-react';
 
 export const GameClock: React.FC = () => {
-  const { timeLeft, isRunning, toggleTimer, tick, period, nextPeriod, resetTimer, finishGame, isFinished } = useGameStore() as any;
+  const { timeLeft, isRunning, toggleTimer, nextPeriod, period, tick, timeoutTimer, finishGame } = useGameStore() as any;
 
   useEffect(() => {
-    const timer = setInterval(() => tick(), 1000);
-    return () => clearInterval(timer);
-  }, [tick]);
+    let interval: any;
+    // El tick debe correr si el juego está en marcha O si hay un timeout activo
+    if ((isRunning && timeLeft > 0) || (timeoutTimer !== null && timeoutTimer > 0)) {
+      interval = setInterval(() => tick(), 1000);
+    }
+    return () => clearInterval(interval);
+  }, [isRunning, timeLeft, timeoutTimer, tick]);
 
-  const format = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, '0')}`;
-
-  if (isFinished) return null; // Si el partido terminó, ocultamos el reloj
+  const formatTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   return (
-    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 text-center shadow-2xl">
-      <div className="flex justify-between items-center mb-2 px-2">
-        <span className="text-blue-500 text-[10px] font-black tracking-[0.3em] uppercase">Parte {period}</span>
-        <div className="flex gap-4">
-          <button onClick={() => confirm('¿Reiniciar a 20:00?') && resetTimer()} className="text-slate-600 hover:text-slate-400">
-            <RotateCcw size={16} />
-          </button>
-          <button onClick={() => confirm('¿Pasar a la siguiente parte?') && nextPeriod()} className="text-slate-600 hover:text-blue-500">
-            <SkipForward size={16} />
-          </button>
-        </div>
+    <div className="bg-slate-900 p-6 rounded-3xl border border-slate-800 shadow-2xl flex flex-col items-center">
+      <div className="flex items-center gap-2 mb-2">
+        <Timer size={16} className="text-blue-500" />
+        <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Periodo {period}</span>
+      </div>
+      
+      <div className="text-7xl font-mono font-black text-white tabular-nums tracking-tighter mb-6">
+        {formatTime(timeLeft)}
       </div>
 
-      <div className="text-6xl font-mono font-black text-yellow-400 mb-6 font-digital">
-        {format(timeLeft)}
-      </div>
-
-      <div className="flex flex-col gap-3">
+      <div className="flex gap-2 w-full">
         <button 
           onClick={toggleTimer}
-          className={`w-full py-4 rounded-2xl font-black text-xl flex items-center justify-center gap-2 shadow-lg ${isRunning ? 'bg-orange-600' : 'bg-green-600'}`}
+          className={`flex-[2] py-4 rounded-2xl flex items-center justify-center gap-2 transition-all active:scale-95 ${
+            isRunning ? 'bg-amber-500/10 text-amber-500 border border-amber-500/50' : 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+          }`}
         >
-          {isRunning ? <Pause size={24} fill="currentColor" /> : <Play size={24} fill="currentColor" />}
-          {isRunning ? 'PAUSA' : 'INICIAR PARTIDO'}
+          {isRunning ? <Pause size={20} fill="currentColor" /> : <Play size={20} fill="currentColor" />}
+          <span className="font-black text-xs uppercase">{isRunning ? 'Pausa' : 'Iniciar'}</span>
         </button>
 
         <button 
-          onClick={() => confirm('¿FINALIZAR EL PARTIDO?') && finishGame()}
-          className="w-full py-2 bg-red-900/30 hover:bg-red-600 text-red-500 hover:text-white rounded-xl font-bold text-xs flex items-center justify-center gap-2 border border-red-900/50 transition-all"
+          onClick={() => confirm('¿Pasar al siguiente periodo?') && nextPeriod()}
+          className="bg-slate-800 text-slate-400 p-4 rounded-2xl hover:bg-slate-700 transition-all border border-slate-700"
         >
-          <CircleStop size={14} /> FINALIZAR PARTIDO
+          <SkipForward size={20} />
+        </button>
+
+        <button 
+          onClick={() => confirm('¿Finalizar partido y ver acta?') && finishGame()}
+          className="bg-red-900/20 text-red-500 p-4 rounded-2xl hover:bg-red-600 hover:text-white transition-all border border-red-500/30"
+        >
+          <AlertTriangle size={20} />
         </button>
       </div>
     </div>

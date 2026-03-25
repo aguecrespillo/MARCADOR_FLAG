@@ -1,91 +1,66 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { db } from '../lib/firebase';
+import { ref, onValue, set } from 'firebase/database';
 
-export const useGameStore = create()(
-  persist(
-    (set) => ({
-      homeTeam: 'LOCAL',
-      awayTeam: 'VISITANTE',
-      homeLogo: null,
-      awayLogo: null,
-      homeScore: 0,
-      awayScore: 0,
-      homeTimeouts: 2, 
-      awayTimeouts: 2, 
-      timeLeft: 1200,      
-      timeoutTimer: null,  
-      isRunning: false,
-      isFinished: false,
-      period: 1,
-      homeRoster: [],
-      awayRoster: [],
-      history: [], 
+export const useGameStore = create((getSet, get) => {
+  const gameRef = ref(db, 'currentGame');
 
-      updateTeams: (data: any) => set((state: any) => ({
-        homeTeam: data.homeTeam || state.homeTeam,
-        awayTeam: data.awayTeam || state.awayTeam,
-        homeLogo: data.homeLogo !== undefined ? data.homeLogo : state.homeLogo,
-        awayLogo: data.awayLogo !== undefined ? data.awayLogo : state.awayLogo,
-      })),
+  // Escuchar cambios de la nube en tiempo real
+  onValue(gameRef, (snapshot) => {
+    const data = snapshot.val();
+    if (data) getSet(data);
+  });
 
-      toggleTimer: () => set((state: any) => ({ isRunning: !state.isRunning })),
-      
-      nextPeriod: () => set((state: any) => ({
-        period: state.period === 1 ? 2 : 1,
-        timeLeft: 1200,
-        isRunning: false,
-        homeTimeouts: 2,
-        awayTimeouts: 2
-      })),
+  const sync = (newState: any) => {
+    set(gameRef, { ...get(), ...newState });
+  };
 
-      finishGame: () => set({ isFinished: true, isRunning: false, timeoutTimer: null }),
+  return {
+    homeTeam: 'LOCAL',
+    awayTeam: 'VISITANTE',
+    homeScore: 0,
+    awayScore: 0,
+    homeTimeouts: 2,
+    awayTimeouts: 2,
+    timeLeft: 1200,
+    isRunning: false,
+    period: 1,
+    history: [],
+    homeRoster: [],
+    awayRoster: [],
 
-      resetGame: () => {
-        set({
-          homeScore: 0, awayScore: 0, homeTimeouts: 2, awayTimeouts: 2,
-          timeLeft: 1200, isRunning: false, isFinished: false, period: 1,
-          timeoutTimer: null, homeRoster: [], awayRoster: [], history: []
-        });
-      },
+    // Acciones que se sincronizan con la nube
+    updateTeams: (data: any) => sync(data),
+    
+    addPlayer: (team: 'home' | 'away', player: any) => {
+      const key = team === 'home' ? 'homeRoster' : 'awayRoster';
+      sync({ [key]: [...(get() as any)[key], player] });
+    },
 
-      tick: () => set((state: any) => {
-        if (state.timeoutTimer !== null && state.timeoutTimer > 0) return { timeoutTimer: state.timeoutTimer - 1 };
-        if (state.timeoutTimer === 0) return { timeoutTimer: null };
-        if (state.isRunning && state.timeLeft > 0) return { timeLeft: state.timeLeft - 1 };
-        return { isRunning: false };
-      }),
+    recordPlay: (team: 'home' | 'away', pts: number, playerName: string, time: string) => {
+      const scoreKey = team === 'home' ? 'homeScore' : 'awayScore';
+      const newHistory = [{ id: Date.now(), team, playerName, pts, time, period: (get() as any).period }, ...(get() as any).history];
+      sync({ 
+        [scoreKey]: (get() as any)[scoreKey] + pts,
+        history: newHistory
+      });
+    },
 
-      requestTimeout: (team: 'home' | 'away') => set((state: any) => {
-        const key = team === 'home' ? 'homeTimeouts' : 'awayTimeouts';
-        if (state[key] > 0 && state.timeoutTimer === null) {
-          return { [key]: state[key] - 1, timeoutTimer: 60, isRunning: false };
-        }
-        return {};
-      }),
+    toggleTimer: () => sync({ isRunning: !(get() as any).isRunning }),
+    
+    tick: () => {
+      const state: any = get();
+      if (state.isRunning && state.timeLeft > 0) {
+        sync({ timeLeft: state.timeLeft - 1 });
+      } else if (state.timeLeft === 0) {
+        sync({ isRunning: false });
+      }
+    },
 
-      addPlayer: (team: 'home' | 'away', player: { name: string; number: string }) => 
-        set((state: any) => {
-          const rosterKey = team === 'home' ? 'homeRoster' : 'awayRoster';
-          return { [rosterKey]: [...state[rosterKey], { ...player, id: Math.random().toString(36).substr(2, 9) }] };
-        }),
-
-      recordPlay: (team: 'home' | 'away', pts: number, playerName: string, time: string) => 
-        set((state: any) => ({
-          [team === 'home' ? 'homeScore' : 'awayScore']: state[team === 'home' ? 'homeScore' : 'awayScore'] + pts,
-          history: [{
-            id: Date.now(),
-            team,
-            playerName,
-            pts,
-            time,
-            period: state.period
-          }, ...state.history]
-        })),
-
-      setTimeoutTimer: (val: any) => set({ timeoutTimer: val }),
-    }),
-    {
-      name: 'marcador-flag-storage', // Nombre único para la base de datos local del navegador
-    }
-  )
-);
+    resetGame: () => sync({
+      homeScore: 0, awayScore: 0, homeTimeouts: 2, awayTimeouts: 2,
+      timeLeft: 1200, isRunning: false, period: 1, history: [],
+      homeRoster: [], awayRoster: []
+    })
+  };
+});

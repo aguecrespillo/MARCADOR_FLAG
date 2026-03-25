@@ -1,9 +1,9 @@
 {
-  "name": "marcador-flag",
+  "name": "marcador-flag-online",
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "homepage": "https://aguecrespillo.github.io/MARCADOR_FLAG/",
+  "homepage": "https://aguecrespillo.github.io/marcador-flag-online/",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
@@ -11,6 +11,7 @@
     "deploy": "gh-pages -d dist"
   },
   "dependencies": {
+    "firebase": "^10.8.0",
     "lucide-react": "^0.344.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",

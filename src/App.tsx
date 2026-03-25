@@ -5,6 +5,7 @@ import { ScoreBoard } from './components/ScoreBoard';
 import { ScoringButtons } from './components/ScoringButtons';
 import { Roster } from './components/Roster';
 import { PlayHistory } from './components/PlayHistory';
+import { DownTracker } from './components/DownTracker'; // <-- AÑADIDO
 import { Settings, X, Image as ImageIcon } from 'lucide-react';
 
 function App() {
@@ -113,7 +114,11 @@ function App() {
       
       {!isFinished && (
         <>
+          {/* AÑADIMOS EL DOWN TRACKER AQUÍ ABAJO DEL MARCADOR */}
+          <DownTracker /> 
+
           <GameClock />
+
           <div className="grid grid-cols-2 gap-2">
              <ScoringButtons team="home" />
              <ScoringButtons team="away" />
